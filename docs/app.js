@@ -371,6 +371,30 @@ function render(){
 
 /* ---------- sheet: detail + record ---------- */
 function resOf(k){return RESULTS.find(function(r){return r.k===k;});}
+
+/* ---------- 不在・持ち帰りのときの次回訪問日（自動） ---------- */
+/* 担当者ごとの休み（曜日：0=日〜6=土）。奥村さん＝土日、細田さん・本多さん＝火水。ほかの人は土日 */
+var OFF_DAYS = {"1204295765043224":[0,6], "1205973182458264":[2,3], "1207663483133353":[2,3]};
+var SPARE_DAY = "2026-12-24";   /* 予備日 */
+function isWorkday(whoGid, d){
+  var p=d.split("-"), w=new Date(+p[0],+p[1]-1,+p[2]).getDay();
+  return (OFF_DAYS[whoGid]||[0,6]).indexOf(w)<0;
+}
+/* 戻り値：{date, why} */
+function suggestNext(o, from){
+  var whoGid=o.who?o.who.gid:"", start=addDays(from,1);
+  if(start<PERIOD.from) start=PERIOD.from;
+  var mineAhead=S.owners.filter(function(x){
+    return x.gid!==o.gid && !x.done && x.due && x.due>=start && x.due<=PERIOD.to &&
+      (whoGid ? (x.who&&x.who.gid===whoGid) : !x.who);
+  }).sort(function(a,b){return a.due<b.due?-1:a.due>b.due?1:0;});
+  var town=mineAhead.find(function(x){return x.city===o.city&&x.area===o.area;});
+  if(town) return {date:town.due, why:"同じ町（"+o.area+"）を回る予定の日"};
+  var city=mineAhead.find(function(x){return x.city===o.city;});
+  if(city) return {date:city.due, why:"同じ"+o.city+"を回る予定の日"};
+  for(var d=start; d<=PERIOD.to; d=addDays(d,1)){ if(isWorkday(whoGid,d)) return {date:d, why:"次の出勤日"}; }
+  return {date:SPARE_DAY, why:"予備日"};
+}
 function openSheet(gid,rec){
   var o=S.owners.find(function(x){return x.gid===gid;});if(!o)return;
   S.sheet={gid:gid,rec:!!rec,res:null,topics:[],talk:"",next:"",err:"",vdate:todayStr(),complete:null,mailAsk:false};
@@ -427,7 +451,8 @@ function renderSheet(scrollTop){
       '<details class="qa"><summary>質問例を見る</summary><dl>'+QA.map(function(q){return '<div><dt>'+esc(q[0])+'</dt><dd>「'+esc(q[1])+'」<br>ねらい：'+esc(q[2])+'</dd></div>';}).join("")+'</dl></details></div>'+
     '<div class="fld"><label for="talk">面談内容（話したこと・聞き出した情報）</label><textarea id="talk" placeholder="例：奥様対応。来年、外壁の塗り替えを考えている。息子さんが相続予定。">'+esc(sh.talk)+'</textarea>'+
       '<span class="hint">Asanaのコメントに残り、その日のうちに社内マニュアルの「注意事項・特質事項」へ追記されます。</span></div>'+
-    (sh.res==="back"?'<div class="fld"><label for="nextD">次回訪問予定（Asanaの期日になります・任意）</label><input type="date" id="nextD" value="'+esc(sh.next)+'" min="'+todayStr()+'"></div>':'')+
+    (sh.res==="back"?'<div class="fld"><label for="nextD">次回の訪問日（Asanaの期日になります）</label><input type="date" id="nextD" value="'+esc(sh.next)+'" min="'+todayStr()+'">'+
+      (sh.nextWhy?'<span class="hint">自動で入れました：'+esc(sh.nextWhy)+'（'+md(sh.next)+'・'+wd(sh.next)+'）。別の日にするときは日付を変えてください。</span>':'')+'</div>':'')+
     '<label class="check" for="doneChk"><input type="checkbox" id="doneChk"'+(wc?' checked':'')+'><span><b>お渡し済みにする</b><br><span class="hint">Asanaのタスクを完了にして「訪問完了」へ移します。手渡し・置き配を選ぶと自動でチェックが付きます。</span></span></label>';
   var ch=changes(o,sh);
   h+='<div class="summary"><b>Asanaに保存される内容</b>'+(ch.length?'<ul>'+ch.map(function(x){return '<li>'+esc(x)+'</li>';}).join("")+'</ul>':'<div class="hint">まず「結果」を選んでください。</div>')+'</div>'+
@@ -516,7 +541,10 @@ document.addEventListener("click",function(ev){
   if(d.af){S.areaFilter=d.af;render();return;}
   if(d.area!==undefined){S.area=d.area||null;render();window.scrollTo(0,0);return;}
   if(S.sheet){
-    if(d.res){S.sheet.res=S.sheet.res===d.res?null:d.res;S.sheet.complete=null;if(S.sheet.res!=="back")S.sheet.next="";renderSheet();return;}
+    if(d.res){S.sheet.res=S.sheet.res===d.res?null:d.res;S.sheet.complete=null;
+      if(S.sheet.res==="back"){ var so=S.owners.find(function(x){return x.gid===S.sheet.gid;}); var sg=suggestNext(so,S.sheet.vdate||todayStr()); S.sheet.next=sg.date; S.sheet.nextWhy=sg.why; }
+      else { S.sheet.next=""; S.sheet.nextWhy=""; }
+      renderSheet();return;}
     if(d.topic){var i2=S.sheet.topics.indexOf(d.topic);if(i2>=0)S.sheet.topics.splice(i2,1);else S.sheet.topics.push(d.topic);renderSheet();return;}
     if(t.id==="saveRec"){saveRecord();return;}
     if(d.reopen){reopenTask(d.reopen);return;}
@@ -534,7 +562,7 @@ document.addEventListener("input",function(ev){
 });
 document.addEventListener("change",function(ev){
   var t=ev.target; if(!S.sheet) return;
-  if(t.id==="nextD"){S.sheet.next=t.value;renderSheet();}
+  if(t.id==="nextD"){S.sheet.next=t.value;S.sheet.nextWhy="";renderSheet();}
   if(t.id==="vDate"){S.sheet.vdate=t.value||todayStr();renderSheet();}
   if(t.id==="doneChk"){S.sheet.complete=t.checked;renderSheet();}
 });
