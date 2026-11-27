@@ -422,7 +422,7 @@ function visitLine(sh){
 }
 function changes(o,sh){
   var c=[];
-  if(sh.res){ c.push("訪問記録："+md(sh.vdate)+" "+resOf(sh.res).label+(sh.topics.length?"（話題："+sh.topics.join("、")+"）":"")); c.push("コメントに訪問の内容を残す"+(sh.talk.trim()?"（面談内容はマニュアルの「注意事項・特質事項」にも追記されます）":"")); }
+  if(sh.res){ c.push("訪問記録："+md(sh.vdate)+" "+resOf(sh.res).label+(sh.topics.length?"（話題："+sh.topics.join("、")+"）":"")); c.push("コメントに訪問の内容を残す"+(sh.talk.trim()?"（面談内容を含む）":"")); }
   if(willComplete(sh)&&!o.done) c.push("タスクを完了にして「訪問完了」へ移動");
   if(sh.next) c.push("次回訪問予定（期日）："+md(sh.next));
   return c;
@@ -431,7 +431,7 @@ function kvRows(o){
   var hist=o.visits.length?o.visits.map(function(v){return md(v.date)+" "+v.raw.replace(/^\S+\s*/,"");}).join("\n"):"まだありません";
   var r=[["家主CD",o.cd||"—"],["物件",o.bldg||"—"],["訪問先",o.addr||"—"],["エリア",o.region||"—"],["管理形態",o.mgmt||"—"],
     ["担当者",o.who?o.who.name:"未定"],["予定（期日）",o.due?md(o.due)+"（"+wd(o.due)+"）":"未定"],["訪問記録",hist],
-    ["マニュアル",o.manual.length?"追記済み "+o.manual.join("、"):(o.visits.some(function(v){return /面談内容あり/.test(v.raw);})?"追記待ち":"—")],["セクション",o.section||"—"]];
+    ["マニュアル",o.manual.length?"追記済み "+o.manual.join("、"):(o.visits.some(function(v){return /面談内容あり/.test(v.raw);})?"訪問終了後にまとめて追記":"—")],["セクション",o.section||"—"]];
   if(o.wall) r.splice(2,0,["外壁提案",o.wall.replace(/／/g,"\n")]);
   if(o.mourning) r.unshift(["喪中",o.mourning]);
   if(o.memo) r.unshift(["注意","※"+o.memo]);
@@ -465,7 +465,7 @@ function renderSheet(scrollTop){
       TOPICS.map(function(tp){return '<button type="button" data-topic="'+esc(tp)+'" aria-pressed="'+(sh.topics.indexOf(tp)>=0)+'">'+esc(tp)+'</button>';}).join("")+'</div>'+
       '<details class="qa"><summary>質問例を見る</summary><dl>'+QA.map(function(q){return '<div><dt>'+esc(q[0])+'</dt><dd>「'+esc(q[1])+'」<br>ねらい：'+esc(q[2])+'</dd></div>';}).join("")+'</dl></details></div>'+
     '<div class="fld"><label for="talk">面談内容（話したこと・聞き出した情報）</label><textarea id="talk" placeholder="例：奥様対応。来年、外壁の塗り替えを考えている。息子さんが相続予定。">'+esc(sh.talk)+'</textarea>'+
-      '<span class="hint">Asanaのコメントに残り、その日のうちに社内マニュアルの「注意事項・特質事項」へ追記されます。</span></div>'+
+      '<span class="hint">Asanaのコメントに残ります。社内マニュアルへは、訪問がすべて終わったあとに管理推進課でまとめて追記します。</span></div>'+
     (sh.res==="back"?'<div class="fld"><label for="nextD">次回の訪問日（Asanaの期日になります）</label><input type="date" id="nextD" value="'+esc(sh.next)+'" min="'+todayStr()+'">'+
       (sh.nextWhy?'<span class="hint">自動で入れました：'+esc(sh.nextWhy)+'（'+md(sh.next)+'・'+wd(sh.next)+'）。別の日にするときは日付を変えてください。</span>':'')+'</div>':'')+
     '<label class="check" for="doneChk"><input type="checkbox" id="doneChk"'+(wc?' checked':'')+'><span><b>お渡し済みにする</b><br><span class="hint">Asanaのタスクを完了にして「訪問完了」へ移します。手渡し・置き配を選ぶと自動でチェックが付きます。</span></span></label>';
