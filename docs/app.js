@@ -87,7 +87,7 @@ function parseTask(t){
   var last=pn.visits.length?pn.visits[pn.visits.length-1]:null;
   var backs=pn.visits.filter(function(v){return /持ち帰り/.test(v.result);}).length;
   return {gid:t.gid, name:String(t.name||"").trim(), notes:String(t.notes||""), cd:f["家主CD"]||"", bldg:f["物件"]||"", addr:addr,
-    city:sp.city, area:sp.area, region:f["エリア"]||"", mgmt:f["管理形態"]||"", mourning:f["喪中"]||"", memo:f["備考"]||"",
+    city:sp.city, area:sp.area, region:f["エリア"]||"", mgmt:f["管理形態"]||"", mourning:f["喪中"]||"", memo:f["備考"]||"", wall:f["外壁提案"]||"",
     visits:pn.visits, last:last, backs:backs, manual:pn.manual,
     who:t.assignee?{gid:t.assignee.gid,name:t.assignee.name||""}:null,
     section:sec, secGid:secGid, url:t.permalink_url||"", due:t.due_on||"", done:!!t.completed};
@@ -208,6 +208,13 @@ function progress(){
     '<div class="bar" aria-hidden="true"><i style="width:'+pct+'%"></i></div>'+
     '<div class="row hint"><span>日程が決まっている '+planned+'件</span><span>日程未定 '+(n-planned)+'件</span></div></div>';
 }
+/* 外壁修繕提案リストの判定（説明欄「外壁提案：要＝…／実施済＝…」）。要が1棟でもあれば「外壁 提案」 */
+function wallPill(o){
+  var w=o.wall; if(!w) return "";
+  if(/(^|／)要/.test(w)) return '<span class="pill warn">外壁 提案'+(/見積提出済/.test(w)?'（見積済）':'')+'</span>';
+  if(/実施済/.test(w)) return '<span class="pill">外壁 実施済</span>';
+  return '<span class="pill">外壁 不要</span>';
+}
 function ownerCard(o,idx,mode){
   var planned=o.due===S.planDate, k=whoKey();
   var num=idx!=null?'<span class="no'+(o.done?' ok':'')+'">'+(o.done?'✓':(idx+1))+'</span>':'<span class="no plain">'+(o.done?"済":"・")+'</span>';
@@ -216,6 +223,7 @@ function ownerCard(o,idx,mode){
     '<div class="ad">'+esc(o.addr||"訪問先の住所なし")+(o.bldg?' ／ '+esc(o.bldg):'')+'</div>'+
     '<div class="row">'+resultPill(o)+(o.mourning?'<span class="pill bad">喪中</span>':'')+
       (k!=="me"&&o.who?'<span class="pill">担当 '+esc(shortName(o.who.name))+'</span>':(k==="all"&&!o.who?'<span class="pill warn">担当未定</span>':''))+
+      wallPill(o)+
       (isTest(o)?'<span class="pill acc">テスト</span>':'')+
       (o.memo?'<span class="memo">※'+esc(o.memo)+'</span>':'')+'</div>'+
     '<div class="acts">';
@@ -424,6 +432,7 @@ function kvRows(o){
   var r=[["家主CD",o.cd||"—"],["物件",o.bldg||"—"],["訪問先",o.addr||"—"],["エリア",o.region||"—"],["管理形態",o.mgmt||"—"],
     ["担当者",o.who?o.who.name:"未定"],["予定（期日）",o.due?md(o.due)+"（"+wd(o.due)+"）":"未定"],["訪問記録",hist],
     ["マニュアル",o.manual.length?"追記済み "+o.manual.join("、"):(o.visits.some(function(v){return /面談内容あり/.test(v.raw);})?"追記待ち":"—")],["セクション",o.section||"—"]];
+  if(o.wall) r.splice(2,0,["外壁提案",o.wall.replace(/／/g,"\n")]);
   if(o.mourning) r.unshift(["喪中",o.mourning]);
   if(o.memo) r.unshift(["注意","※"+o.memo]);
   return r;
